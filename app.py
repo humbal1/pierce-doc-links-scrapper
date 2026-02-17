@@ -19,24 +19,40 @@ from scraper_engine import run_scraper_for_document
 app = Flask(__name__)
 CORS(app)
 
-def get_google_sheet():
+# --- CONFIGURATION ---
+GOOGLE_SHEET_NAME = "County and Document Types"
+RESULTS_FOLDER = "results"
+CREDENTIALS_FILE = "google_credentials.json"
+
+# --- CREDENTIALS SETUP ---
+# ✅ Render support: write credentials from env variable to file
+# ✅ Auto-fixes newlines in private keys to prevent "Invalid JWT" errors
+if os.environ.get("GOOGLE_CREDENTIALS"):
     try:
-        # 1. Check if we have the credentials in an Environment Variable (Vercel/Render)
-        env_creds = os.environ.get("GOOGLE_CREDENTIALS")
+        creds_content = os.environ.get("GOOGLE_CREDENTIALS")
         
-        if env_creds:
-            # Parse the string into a dictionary and authenticate via info
-            creds_dict = json.loads(env_creds)
-            client = gspread.service_account_from_dict(creds_dict)
-        else:
-            # 2. Fallback to local file (Local development)
-            client = gspread.service_account(filename=CREDENTIALS_FILE)
+        # Try to parse as JSON to fix potential formatting issues
+        creds_dict = json.loads(creds_content)
+        
+        # Fix the private key if it has literal "\n" characters
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        
+        # Write clean JSON to file
+        with open(CREDENTIALS_FILE, "w") as f:
+            json.dump(creds_dict, f, indent=2)
             
-        return client.open(GOOGLE_SHEET_NAME).sheet1
-        
+        print("✅ Credentials loaded and formatted from environment variable")
     except Exception as e:
-        print(f"❌ Google Sheets error: {e}")
-        return None
+        print(f"⚠️ Error processing GOOGLE_CREDENTIALS: {e}")
+        # Fallback: write raw content if parsing fails
+        with open(CREDENTIALS_FILE, "w") as f:
+            f.write(os.environ.get("GOOGLE_CREDENTIALS"))
+else:
+    print("✅ Reading credentials from google_credentials.json (local mode)")
+
+# Create results folder if it doesn't exist
+os.makedirs(RESULTS_FOLDER, exist_ok=True)
 
 # Global job tracking
 jobs = {}
@@ -49,10 +65,10 @@ job_counter = 0
 
 def get_google_sheet():
     """
-    Connect to Google Sheets using modern gspread 6.x API.
-    gspread.service_account() replaces the old deprecated gspread.authorize()
+    Connect to Google Sheets using modern gspread API.
     """
     try:
+        # We read from the file because the block above ensured it exists (either from Env or Local)
         client = gspread.service_account(filename=CREDENTIALS_FILE)
         return client.open(GOOGLE_SHEET_NAME).sheet1
     except gspread.exceptions.SpreadsheetNotFound:
@@ -315,10 +331,7 @@ def image_proxy():
             with open('session_cookies.pkl', 'rb') as f:
                 selenium_cookies = pickle.load(f)
             cookies = {c['name']: c['value'] for c in selenium_cookies}
-            print(f"🍪 Loaded {len(cookies)} session cookies for proxy")
-        else:
-            print("⚠️ No session cookies found - image may not load")
-
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://armsweb.co.pierce.wa.us/RealEstate/SearchResults.aspx'
