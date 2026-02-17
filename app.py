@@ -19,21 +19,24 @@ from scraper_engine import run_scraper_for_document
 app = Flask(__name__)
 CORS(app)
 
-# --- CONFIGURATION ---
-GOOGLE_SHEET_NAME = "County and Document Types"
-RESULTS_FOLDER = "results"
-CREDENTIALS_FILE = "google_credentials.json"
-
-# ✅ Render support: write credentials from env variable to file
-# ✅ Local support: reads directly from google_credentials.json
-if os.environ.get("GOOGLE_CREDENTIALS"):
-    with open(CREDENTIALS_FILE, "w") as f:
-        f.write(os.environ.get("GOOGLE_CREDENTIALS"))
-    print("✅ Credentials loaded from environment variable (Render mode)")
-else:
-    print("✅ Reading credentials from google_credentials.json (local mode)")
-
-os.makedirs(RESULTS_FOLDER, exist_ok=True)
+def get_google_sheet():
+    try:
+        # 1. Check if we have the credentials in an Environment Variable (Vercel/Render)
+        env_creds = os.environ.get("GOOGLE_CREDENTIALS")
+        
+        if env_creds:
+            # Parse the string into a dictionary and authenticate via info
+            creds_dict = json.loads(env_creds)
+            client = gspread.service_account_from_dict(creds_dict)
+        else:
+            # 2. Fallback to local file (Local development)
+            client = gspread.service_account(filename=CREDENTIALS_FILE)
+            
+        return client.open(GOOGLE_SHEET_NAME).sheet1
+        
+    except Exception as e:
+        print(f"❌ Google Sheets error: {e}")
+        return None
 
 # Global job tracking
 jobs = {}
