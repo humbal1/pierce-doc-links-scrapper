@@ -5,6 +5,7 @@ Runs Chrome in headless mode (no visible browser)
 
 import time
 import os
+import shutil
 import re
 import pandas as pd
 from selenium import webdriver
@@ -15,15 +16,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 from datetime import datetime
 
 MAX_PAGES = 50  # Scrape all pages
 
 def get_headless_driver():
-    """Initialize headless Chrome driver"""
+    """Initialize headless Chrome driver with auto-binary detection"""
     options = Options()
     
-    # HEADLESS MODE - No browser window opens
+    # 1. BASIC HEADLESS OPTIONS
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -36,12 +38,56 @@ def get_headless_driver():
     # User agent to avoid detection
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()), 
-        options=options
-    )
-    
-    return driver
+    # 2. ATTEMPT TO FIND OR INSTALL CHROME BINARY
+    # Check if we are on Render (Linux) or Local
+    is_render = os.environ.get("RENDER") or os.path.exists("/opt/render")
+
+    if is_render:
+        print("🌍 Detected Render Environment")
+        
+        # Try to find standard chromium locations first
+        possible_bins = [
+            "/usr/bin/google-chrome",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/opt/render/project/src/.chrome/chrome"  # Custom path if manually installed
+        ]
+        
+        binary_location = None
+        for bin_path in possible_bins:
+            if os.path.exists(bin_path):
+                binary_location = bin_path
+                break
+        
+        if binary_location:
+            print(f"✅ Found Chrome binary at: {binary_location}")
+            options.binary_location = binary_location
+        else:
+            print("⚠️ No system Chrome found. Trusting webdriver_manager to handle it...")
+
+    # 3. INSTALL DRIVER
+    try:
+        if is_render:
+            # On Linux/Render, specify ChromeType.CHROMIUM to help match the binary
+            service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+        else:
+            # Local Windows/Mac
+            service = Service(ChromeDriverManager().install())
+            
+        driver = webdriver.Chrome(service=service, options=options)
+        return driver
+        
+    except Exception as e:
+        print(f"❌ CRITICAL DRIVER ERROR: {e}")
+        # Fallback debug info
+        import subprocess
+        try:
+            print("Debug: Searching for chrome...")
+            print(subprocess.getoutput("which google-chrome"))
+            print(subprocess.getoutput("which chromium"))
+        except:
+            pass
+        raise e
 
 def clear_input(element):
     """Clears date fields"""
@@ -72,10 +118,11 @@ def scrape_document_type(document_type, max_pages=50, progress_callback=None):
         if progress_callback:
             progress_callback(message)
     
-    driver = get_headless_driver()
+    driver = None
     all_results = []
     
     try:
+        driver = get_headless_driver()
         log(f"🚀 Starting scrape for: {document_type}")
         
         # Navigate to website
@@ -230,6 +277,15 @@ def scrape_document_type(document_type, max_pages=50, progress_callback=None):
                 break
         
         log(f"✅ Scraping complete! Total records: {len(all_results)}")
+
+        # Save session cookies for image proxy reuse
+        try:
+            import pickle
+            cookies = driver.get_cookies()
+            with open("session_cookies.pkl", "wb") as f:
+                pickle.dump(cookies, f)
+        except:
+            pass
         
     except Exception as e:
         log(f"❌ Error: {str(e)}")
@@ -237,18 +293,10 @@ def scrape_document_type(document_type, max_pages=50, progress_callback=None):
         traceback.print_exc()
     
     finally:
-        driver.quit()
-        log("   🔚 Browser closed")
+        if driver:
+            driver.quit()
+            log("   🔚 Browser closed")
     
-    # Save session cookies for image proxy reuse
-    try:
-        import pickle
-        cookies = driver.get_cookies()
-        with open("session_cookies.pkl", "wb") as f:
-            pickle.dump(cookies, f)
-    except:
-        pass
-
     return pd.DataFrame(all_results)
 
 
