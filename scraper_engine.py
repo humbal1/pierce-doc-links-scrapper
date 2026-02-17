@@ -45,25 +45,36 @@ def get_headless_driver():
     if is_render:
         print("🌍 Detected Render Environment")
         
-        # Try to find standard chromium locations first
-        possible_bins = [
-            "/usr/bin/google-chrome",
-            "/usr/bin/chromium",
-            "/usr/bin/chromium-browser",
-            "/opt/render/project/src/.chrome/chrome"  # Custom path if manually installed
-        ]
+        # ---------------------------------------------------------
+        # 🛠️ CRITICAL FIX: Point to the manual Chrome install
+        # ---------------------------------------------------------
+        # This matches the folder structure from render-build.sh
+        custom_chrome = "/opt/render/project/src/chrome/opt/google/chrome/google-chrome"
         
-        binary_location = None
-        for bin_path in possible_bins:
-            if os.path.exists(bin_path):
-                binary_location = bin_path
-                break
-        
-        if binary_location:
-            print(f"✅ Found Chrome binary at: {binary_location}")
-            options.binary_location = binary_location
+        if os.path.exists(custom_chrome):
+            print(f"✅ Found custom Chrome binary at: {custom_chrome}")
+            options.binary_location = custom_chrome
         else:
-            print("⚠️ No system Chrome found. Trusting webdriver_manager to handle it...")
+            # Fallback: Try to find standard chromium locations
+            print("⚠️ Custom Chrome not found, checking standard paths...")
+            possible_bins = [
+                "/usr/bin/google-chrome",
+                "/usr/bin/chromium",
+                "/usr/bin/chromium-browser",
+                "/opt/render/project/src/.chrome/chrome"
+            ]
+            
+            binary_location = None
+            for bin_path in possible_bins:
+                if os.path.exists(bin_path):
+                    binary_location = bin_path
+                    break
+            
+            if binary_location:
+                print(f"✅ Found Chrome binary at: {binary_location}")
+                options.binary_location = binary_location
+            else:
+                print("⚠️ No system Chrome found. Trusting webdriver_manager to handle it...")
 
     # 3. INSTALL DRIVER
     try:
@@ -83,8 +94,7 @@ def get_headless_driver():
         import subprocess
         try:
             print("Debug: Searching for chrome...")
-            print(subprocess.getoutput("which google-chrome"))
-            print(subprocess.getoutput("which chromium"))
+            print(subprocess.getoutput("find /opt/render/project/src -name google-chrome"))
         except:
             pass
         raise e
