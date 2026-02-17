@@ -7,6 +7,7 @@ import time
 import os
 import shutil
 import re
+import subprocess
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -20,6 +21,24 @@ from webdriver_manager.core.os_manager import ChromeType
 from datetime import datetime
 
 MAX_PAGES = 50  # Scrape all pages
+
+def get_chrome_version(binary_path):
+    """
+    Run the Chrome binary with --version to get the exact version string.
+    Returns something like '121.0.6167.85'
+    """
+    try:
+        # Run: google-chrome --version
+        result = subprocess.check_output([binary_path, "--version"], stderr=subprocess.STDOUT)
+        output = result.decode("utf-8").strip()
+        # Extract version number using regex (e.g., "Google Chrome 121.0.6167.85")
+        match = re.search(r"(\d+\.\d+\.\d+\.\d+)", output)
+        if match:
+            return match.group(1)
+        return None
+    except Exception as e:
+        print(f"⚠️ Could not detect Chrome version: {e}")
+        return None
 
 def get_headless_driver():
     """Initialize headless Chrome driver with auto-binary detection"""
@@ -38,24 +57,24 @@ def get_headless_driver():
     # User agent to avoid detection
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     
-    # 2. ATTEMPT TO FIND OR INSTALL CHROME BINARY
+    # 2. LOCATE CHROME BINARY
     # Check if we are on Render (Linux) or Local
     is_render = os.environ.get("RENDER") or os.path.exists("/opt/render")
+    
+    binary_location = None
+    detected_version = None
 
     if is_render:
         print("🌍 Detected Render Environment")
         
-        # ---------------------------------------------------------
-        # 🛠️ CRITICAL FIX: Point to the manual Chrome install
-        # ---------------------------------------------------------
-        # This matches the folder structure from render-build.sh
+        # Path from render-build.sh
         custom_chrome = "/opt/render/project/src/chrome/opt/google/chrome/google-chrome"
         
         if os.path.exists(custom_chrome):
             print(f"✅ Found custom Chrome binary at: {custom_chrome}")
-            options.binary_location = custom_chrome
+            binary_location = custom_chrome
         else:
-            # Fallback: Try to find standard chromium locations
+            # Fallback search
             print("⚠️ Custom Chrome not found, checking standard paths...")
             possible_bins = [
                 "/usr/bin/google-chrome",
@@ -63,26 +82,27 @@ def get_headless_driver():
                 "/usr/bin/chromium-browser",
                 "/opt/render/project/src/.chrome/chrome"
             ]
-            
-            binary_location = None
             for bin_path in possible_bins:
                 if os.path.exists(bin_path):
                     binary_location = bin_path
                     break
-            
-            if binary_location:
-                print(f"✅ Found Chrome binary at: {binary_location}")
-                options.binary_location = binary_location
-            else:
-                print("⚠️ No system Chrome found. Trusting webdriver_manager to handle it...")
+
+        if binary_location:
+            options.binary_location = binary_location
+            # Detect version to ensure Driver matches Browser
+            detected_version = get_chrome_version(binary_location)
+            print(f"ℹ️  Detected Chrome Version: {detected_version}")
+        else:
+            print("⚠️ No system Chrome found. Trusting webdriver_manager defaults...")
 
     # 3. INSTALL DRIVER
     try:
-        if is_render:
-            # On Linux/Render, specify ChromeType.CHROMIUM to help match the binary
-            service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+        if is_render and detected_version:
+            # FORCE the driver version to match the browser version we found
+            print(f"⬇️  Installing ChromeDriver version: {detected_version}")
+            service = Service(ChromeDriverManager(driver_version=detected_version).install())
         else:
-            # Local Windows/Mac
+            # Local or fallback
             service = Service(ChromeDriverManager().install())
             
         driver = webdriver.Chrome(service=service, options=options)
@@ -90,13 +110,6 @@ def get_headless_driver():
         
     except Exception as e:
         print(f"❌ CRITICAL DRIVER ERROR: {e}")
-        # Fallback debug info
-        import subprocess
-        try:
-            print("Debug: Searching for chrome...")
-            print(subprocess.getoutput("find /opt/render/project/src -name google-chrome"))
-        except:
-            pass
         raise e
 
 def clear_input(element):
