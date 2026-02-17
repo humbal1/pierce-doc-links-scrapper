@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pierce County Document Scraper Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-queued { background: #ffc107; color: #000; }
+        .status-running { background: #007bff; color: #fff; }
+        .status-success { background: #28a745; color: #fff; }
+        .status-error { background: #dc3545; color: #fff; }
+        .status-complete { background: #28a745; color: #fff; }
+
+        .job-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .job-item h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .job-meta {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .job-actions {
+            margin-top: 10px;
+        }
+
+        .job-actions .btn {
+            font-size: 14px;
+            padding: 8px 20px;
+            margin-right: 10px;
+        }
+
+        .progress-log {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+
+        .progress-log-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .progress-log-item:last-child {
+            border-bottom: none;
+        }
+
+        .progress-log-time {
+            color: #999;
+            margin-right: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>📊 Pierce County Document Scraper</h1>
+            <p>Automated document scraping from Pierce County Auditor's website</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="stats">
+            <div class="stat-box">
+                <div class="stat-number" id="stat-total">0</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="stat-running">0</div>
+                <div class="stat-label">Running</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="stat-complete">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="stat-pending">0</div>
+                <div class="stat-label">Pending in Sheet</div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="card">
+            <h2>🎮 Control Panel</h2>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <button class="btn" onclick="autoSync()">
+                    🔄 Auto-Sync with Google Sheets
+                </button>
+                <button class="btn btn-secondary" onclick="refreshJobs()">
+                    ↻ Refresh Jobs
+                </button>
+                <button class="btn btn-secondary" onclick="checkPendingJobs()">
+                    📋 Check Pending Jobs
+                </button>
+            </div>
+            
+            <div id="sync-message" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- Active Jobs -->
+        <div class="card">
+            <h2>🚀 Active Jobs</h2>
+            <div id="jobs-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>No active jobs. Sync with Google Sheets to start scraping!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Jobs from Google Sheets -->
+        <div class="card">
+            <h2>📝 Pending Jobs in Google Sheets</h2>
+            <div id="pending-jobs-list">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📑</div>
+                    <p>Click "Check Pending Jobs" to see what's queued in Google Sheets</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let refreshInterval;
+
+        // Auto-refresh every 5 seconds
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                refreshJobs();
+            }, 5000);
+        }
+
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        // Auto-sync with Google Sheets
+        async function autoSync() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '🔄 Syncing... <span class="loading"></span>';
+            
+            showMessage('info', 'Checking Google Sheets for jobs with "Start" status...');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auto-sync`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('success', `✅ ${data.message}`);
+                    refreshJobs();
+                } else {
+                    showMessage('error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Auto-Sync with Google Sheets';
+            }
+        }
+
+        // Check pending jobs in Google Sheets
+        async function checkPendingJobs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/sheet/sync`);
+                const data = await response.json();
+                
+                const container = document.getElementById('pending-jobs-list');
+                
+                if (data.status === 'success' && data.pending_jobs.length > 0) {
+                    document.getElementById('stat-pending').textContent = data.pending_jobs.length;
+                    
+                    container.innerHTML = data.pending_jobs.map(job => `
+                        <div class="job-item">
+                            <h3>${job.document_type}</h3>
+                            <div class="job-meta">
+                                Row: ${job.row} | County: ${job.county}
+                            </div>
+                            <div class="job-actions">
+                                <button class="btn btn-success" onclick="startSingleJob('${job.document_type}', ${job.row})">
+                                    ▶️ Start This Job
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('stat-pending').textContent = 0;
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">✅</div>
+                            <p>No pending jobs! All entries either completed or not marked as "Start"</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error checking pending jobs:', error);
+            }
+        }
+
+        // Start a single job
+        async function startSingleJob(documentType, row) {
+            try {
+                const response = await fetch(`${API_BASE}/api/jobs/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        document_type: documentType,
+                        row: row
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showMessage('success', `✅ Started job for ${documentType}`);
+                    refreshJobs();
+                    checkPendingJobs();
+                } else {
+                    showMessage('error', `❌ Error: ${data.message}`);
+                }
+            } catch (error) {
+                showMessage('error', `❌ Error: ${error.message}`);
+            }
+        }
+
+        // Refresh jobs list
+        async function refreshJobs() {
+            try {
+                const response = await fetch(`${API_BASE}/api/jobs`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    updateStats(data.jobs);
+                    renderJobs(data.jobs);
+                }
+            } catch (error) {
+                console.error('Error refreshing jobs:', error);
+            }
+        }
+
+        // Update statistics
+        function updateStats(jobs) {
+            const stats = {
+                total: jobs.length,
+                running: jobs.filter(j => j.status === 'running' || j.status === 'queued').length,
+                complete: jobs.filter(j => j.status === 'success' || j.status === 'complete').length
+            };
+            
+            document.getElementById('stat-total').textContent = stats.total;
+            document.getElementById('stat-running').textContent = stats.running;
+            document.getElementById('stat-complete').textContent = stats.complete;
+        }
+
+        // Render jobs list
+        function renderJobs(jobs) {
+            const container = document.getElementById('jobs-list');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No active jobs. Sync with Google Sheets to start scraping!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort: running first, then by start time
+            jobs.sort((a, b) => {
+                if (a.status === 'running' && b.status !== 'running') return -1;
+                if (a.status !== 'running' && b.status === 'running') return 1;
+                return new Date(b.started_at) - new Date(a.started_at);
+            });
+            
+            container.innerHTML = jobs.map(job => {
+                const statusClass = `status-${job.status}`;
+                const result = job.result || {};
+                
+                let progressHtml = '';
+                if (job.progress && job.progress.length > 0) {
+                    const recentProgress = job.progress.slice(-10);
+                    progressHtml = `
+                        <div class="progress-log">
+                            ${recentProgress.map(p => `
+                                <div class="progress-log-item">
+                                    <span class="progress-log-time">${new Date(p.time).toLocaleTimeString()}</span>
+                                    ${p.message}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+                
+                let downloadBtn = '';
+                if (job.status === 'success' && result.filepath) {
+                    const filename = result.filepath.split(/[\\/]/).pop();
+                    const pdfCount = result.pdf_count || 0;
+                    const pdfFolder = result.pdf_folder || '';
+                    downloadBtn = `
+                        <div style="margin-top:12px;">
+                            <button class="btn btn-success" onclick="downloadFile('${filename}')">
+                                📥 Download CSV (${result.record_count} records)
+                            </button>
+                            ${pdfCount > 0 ? `
+                            <div style="margin-top:10px; padding:12px; background:#d4edda; border-radius:8px; color:#155724; font-size:14px;">
+                                ✅ <strong>${pdfCount} PDFs downloaded</strong> automatically to server folder:<br>
+                                <code style="font-size:12px;">${pdfFolder}</code>
+                            </div>` : ''}
+                        </div>
+                    `;
+                }
+                
+                return `
+                    <div class="job-item">
+                        <h3>${job.document_type}</h3>
+                        <div class="job-meta">
+                            <span class="status-badge ${statusClass}">${job.status}</span>
+                            Started: ${new Date(job.started_at).toLocaleString()}
+                            ${job.sheet_row ? ` | Sheet Row: ${job.sheet_row}` : ''}
+                        </div>
+                        ${result.message ? `<p>${result.message}</p>` : ''}
+                        ${progressHtml}
+                        <div class="job-actions">
+                            ${downloadBtn}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Download result file
+        function downloadFile(filename) {
+            const url = `${API_BASE}/api/results/${encodeURIComponent(filename)}`;
+            console.log('Downloading:', url);
+            // Create a hidden link and click it for proper download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Open image through session proxy
+        function openImage(imageUrl) {
+            const proxyUrl = `${API_BASE}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+            window.open(proxyUrl, '_blank');
+        }
+
+        // Show message
+        function showMessage(type, message) {
+            const container = document.getElementById('sync-message');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                               type === 'error' ? 'alert-danger' : 'alert-info';
+            
+            container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshJobs();
+            checkPendingJobs();
+            startAutoRefresh();
+        });
+    </script>
+</body>
+</html>
